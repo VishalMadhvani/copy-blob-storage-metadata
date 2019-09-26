@@ -43,7 +43,7 @@ namespace blobmetadataupdate
             ILogger log)
         {
             CloudBlobContainer blobContainer = GetBlobContainer();
-            CloudQueue queue = GetQueue("csvdata");
+            CloudQueue queue = GetQueue("data");
 
             //List<string> blobNames = new List<string>();
             BlobContinuationToken blobContinuationToken = null;
