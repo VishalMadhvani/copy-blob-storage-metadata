@@ -89,5 +89,18 @@ namespace blobmetadataupdate
 
             return starter.CreateCheckStatusResponse(req, instanceId);
         }
+
+        [FunctionName("UpdateMetadata")]
+        public static async Task UpdateMetadata(
+            [QueueTrigger("data", Connection = "StorageAccount")]string blobName,
+            ILogger log)
+        {
+            CloudBlobContainer blobContainer = GetBlobContainer();
+            CloudBlockBlob cloudBlockBlob = blobContainer.GetBlockBlobReference(blobName);
+            await cloudBlockBlob.FetchAttributesAsync();
+            cloudBlockBlob.Metadata.Clear();
+            cloudBlockBlob.Metadata.Add("test_key", "test_value");
+            await cloudBlockBlob.SetMetadataAsync();
+        }
     }
 }
