@@ -89,6 +89,7 @@ namespace blobmetadataupdate
 
             // TODO: Review docs on available overloads for this method.
             //      What does useFlatBlobListing do?
+            //      find a good batch size
             var results = await cloudBlobContainer.ListBlobsSegmentedAsync(null, blobContinuationToken);
 
             // Will OfType actually filter to block blobs?
