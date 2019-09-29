@@ -5,7 +5,9 @@ VisualStudioVersion = 16.0.29318.209
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CopyBlobMetadata", "CopyBlobMetadata\CopyBlobMetadata.csproj", "{8824E5F8-7090-4925-92F2-B9AC8F94EA22}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClearBlobMetadata", "ClearBlobMetadata\ClearBlobMetadata.csproj", "{4F39C27D-5C7F-4EF5-9C35-C752961D8D10}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ClearBlobMetadata", "ClearBlobMetadata\ClearBlobMetadata.csproj", "{4F39C27D-5C7F-4EF5-9C35-C752961D8D10}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MockApi", "MockApi\MockApi.csproj", "{032CADB6-3056-42A6-A8DD-0AB12202086A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{4F39C27D-5C7F-4EF5-9C35-C752961D8D10}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4F39C27D-5C7F-4EF5-9C35-C752961D8D10}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4F39C27D-5C7F-4EF5-9C35-C752961D8D10}.Release|Any CPU.Build.0 = Release|Any CPU
+		{032CADB6-3056-42A6-A8DD-0AB12202086A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{032CADB6-3056-42A6-A8DD-0AB12202086A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{032CADB6-3056-42A6-A8DD-0AB12202086A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{032CADB6-3056-42A6-A8DD-0AB12202086A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
