@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -13,16 +12,15 @@ using Microsoft.Extensions.Logging;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using Microsoft.WindowsAzure.Storage.Queue;
-using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
 
 namespace blobmetadataupdate
 {
     public static class CopyBlobMetadataFunctions
     {
-        private static HttpClient httpClient = new HttpClient();
-        private static string functionAppUrl = Environment.GetEnvironmentVariable("FunctionAppUrl");
-        private static string functionStorageConnectionString = Environment.GetEnvironmentVariable("AzureWebJobsStorage");
+        private static readonly HttpClient httpClient = new HttpClient();
+        private static readonly string functionAppUrl = Environment.GetEnvironmentVariable("FunctionAppUrl");
+        private static readonly string functionStorageConnectionString = Environment.GetEnvironmentVariable("AzureWebJobsStorage");
 
         [FunctionName("Start")]
         public static async Task<IActionResult> Start(
@@ -48,22 +46,17 @@ namespace blobmetadataupdate
             [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequest req,
             ILogger log)
         {
-            var stopwatch = new Stopwatch();
             req.GetQueryParameterDictionary().TryGetValue("ContinuationToken", out var continuationToken);
             var copyMetadataInfo = await CopyMetadataInfo.Deserialize(req.Body);
             var blobContainer = GetBlobContainer(copyMetadataInfo.SourceConnectionString, copyMetadataInfo.SourceContainerName);
-            var startedAt = DateTime.UtcNow;
 
-            stopwatch.Start();
             var results = await blobContainer.ListBlobsSegmentedAsync(null, true, BlobListingDetails.None, 5000, new BlobContinuationToken() { NextMarker = continuationToken }, null, null);
-            stopwatch.Stop();
 
             continuationToken = results.ContinuationToken?.NextMarker;
             if (!string.IsNullOrWhiteSpace(continuationToken))
             {
                 _ = httpClient.PostAsync($"{functionAppUrl}GetBlobs?ContinuationToken={continuationToken}", new StringContent(copyMetadataInfo.ToString()));
             }
-            await LogListBlobs(copyMetadataInfo.ExecutionId, startedAt, stopwatch.ElapsedMilliseconds, results.Results.Count());
 
             List<CloudBlockBlob> blobs = results.Results.OfType<CloudBlockBlob>().ToList();
             var tracker = 0;
@@ -93,9 +86,6 @@ namespace blobmetadataupdate
             ILogger log)
         {
             var copyMetadataQueue = GetCopyMetadataQueue();
-            var startedAt = DateTime.UtcNow;
-            var stopwatch = new Stopwatch();
-            stopwatch.Start();
             using (StreamReader streamReader = new StreamReader(req.Body))
             {
                 var json = await streamReader.ReadToEndAsync();
@@ -105,7 +95,6 @@ namespace blobmetadataupdate
                         copyMetadataQueue.AddMessageAsync(new CloudQueueMessage(copyMetadataInfo.ToString())))
                     .ToList();
                 await Task.WhenAll(enqueueTasks);
-                await LogProcessSegment(copyMetadataInfos.First().ExecutionId, startedAt, stopwatch.ElapsedMilliseconds, copyMetadataInfos.Count());
             }
         }
 
@@ -114,9 +103,6 @@ namespace blobmetadataupdate
             [QueueTrigger("copymetadata")]string json,
             ILogger log)
         {
-            var startedAt = DateTime.UtcNow;
-            var stopwatch = new Stopwatch();
-            stopwatch.Start();
             var copyMetadataInfo = CopyMetadataInfo.Deserialize(json);
 
             var sourceBlob =
@@ -126,7 +112,6 @@ namespace blobmetadataupdate
 
             if (!sourceBlob.Metadata.Any())
             {
-                await LogCopyMetadata(copyMetadataInfo.ExecutionId, copyMetadataInfo.BlobName, startedAt, stopwatch.ElapsedMilliseconds, sourceBlob.Metadata.Count());
                 return;
             }
 
@@ -141,7 +126,6 @@ namespace blobmetadataupdate
                 destinationBlob.Metadata.Add(metadata.Key, metadata.Value);
             }
             await destinationBlob.SetMetadataAsync();
-            await LogCopyMetadata(copyMetadataInfo.ExecutionId, copyMetadataInfo.BlobName, startedAt, stopwatch.ElapsedMilliseconds, sourceBlob.Metadata.Count());
         }
 
         public class CopyMetadataInfo
@@ -179,60 +163,6 @@ namespace blobmetadataupdate
             }
         }
 
-        private class CopyMetadataLog : TableEntity
-        {
-            public string Function { get; set; }
-            public string BlobName { get; set; }
-            public DateTime StartedAt { get; set; }
-            public long Duration { get; set; }
-            public int Count { get; set; }
-
-            public CopyMetadataLog() { }
-        }
-
-        private static async Task LogListBlobs(string executionId, DateTime startedAt, long duration, int count)
-        {
-            await GetCopyMetadataTable()
-                .ExecuteAsync(TableOperation.Insert(new CopyMetadataLog()
-                {
-                    PartitionKey = executionId,
-                    RowKey = Guid.NewGuid().ToString(),
-                    Function = "ListBlobs",
-                    StartedAt = startedAt,
-                    Duration = duration,
-                    Count = count,
-                }));
-        }
-
-        private static async Task LogProcessSegment(string executionId, DateTime startedAt, long duration, int count)
-        {
-            await GetCopyMetadataTable()
-                .ExecuteAsync(TableOperation.Insert(new CopyMetadataLog()
-                {
-                    PartitionKey = executionId,
-                    RowKey = Guid.NewGuid().ToString(),
-                    Function = "ProcessSegment",
-                    StartedAt = startedAt,
-                    Duration = duration,
-                    Count = count,
-                }));
-        }
-
-        private static async Task LogCopyMetadata(string executionId, string blobName, DateTime startedAt, long duration, int count)
-        {
-            await GetCopyMetadataTable()
-                .ExecuteAsync(TableOperation.Insert(new CopyMetadataLog()
-                {
-                    PartitionKey = executionId,
-                    RowKey = Guid.NewGuid().ToString(),
-                    Function = "CopyMetadata",
-                    BlobName = blobName,
-                    StartedAt = startedAt,
-                    Duration = duration,
-                    Count = count,
-                }));
-        }
-
         private static CloudBlobContainer GetBlobContainer(string connectionString, string containerName)
         {
             return
@@ -249,20 +179,8 @@ namespace blobmetadataupdate
                 .GetQueueReference("copymetadata");
         }
 
-        private static CloudTable GetCopyMetadataTable()
-        {
-            return
-                CloudStorageAccount.Parse(functionStorageConnectionString)
-                .CreateCloudTableClient()
-                .GetTableReference("CopyMetadata");
-        }
-
         private static async Task EnsureInfrastructure()
         {
-            var copyMetadataTable = GetCopyMetadataTable();
-            if (!await copyMetadataTable.ExistsAsync())
-                await copyMetadataTable.CreateAsync();
-
             var copyMetadataQueue = GetCopyMetadataQueue();
             if (!await copyMetadataQueue.ExistsAsync())
                 await copyMetadataQueue.CreateAsync();
